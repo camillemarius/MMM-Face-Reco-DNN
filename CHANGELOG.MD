@@ -1,3 +1,9 @@
+# Unreleased
+
+- Single-user mode (`multiUser: 0`): a newly recognised person takes over right away instead of waiting for the previous person to log out. An unknown face never pushes a recognised person away.
+- When that person leaves, whoever is still in front of the mirror is shown again.
+- Tests: `node --test test/*.test.js`
+
 # 2.0.1 (2023-11-01)
 
 - After a lot of install issues. We removed `pipenv` again and changed the install-instructions
