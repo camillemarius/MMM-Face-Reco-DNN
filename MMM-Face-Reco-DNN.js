@@ -15,6 +15,8 @@ Module.register('MMM-Face-Reco-DNN', {
     // Logout 15 seconds after user was not detecte anymore, if they will be detected between this 15
     // Seconds, they delay will start again
     logoutDelay: 15000,
+    // a module may keep the view up longer (notification HOLD_LOGOUT with { until: timestamp }), at most this long
+    maxHold: 10 * 60 * 1000,
     // How many time the recognition starts, with a RasPi 3+ it would be good every 2 seconds
     checkInterval: 2000,
     // Module set used for when there is no face detected ie no one is in front of the camera
@@ -440,12 +442,7 @@ Module.register('MMM-Face-Reco-DNN', {
           if (this.users.includes(user)) {
             this.config.debug && Log.log('Setting logout timer for ' + user + ' for ' + this.config.logoutDelay + 'ms');
             this.timouts[user] = setTimeout(function () {
-              // Broadcast notificaiton that we are about to hide modules.
-              // Ideally this would be USERS_LOGOUT to be consistent with hide/show timer, but to prevent regression using a new type.
-              self.sendNotification('USERS_LOGOUT_MODULES', user);
-              self.logout_user(user);
-              logoutCount++;
-              self.showNextPresent();
+              self.logoutAfterHold(user);
             }, this.config.logoutDelay);
           } else {
             this.config.debug && Log.log('Detected a logout event for ' + user + ' but they were not logged in.');
@@ -476,6 +473,27 @@ Module.register('MMM-Face-Reco-DNN', {
     this.login_user(user);
   },
 
+  // Log out once no module holds the view any more (HOLD_LOGOUT); a newly recognised person still takes over at once.
+  logoutAfterHold: function (user) {
+    var self = this;
+    var holds = this.holds || {};
+    var until = Object.keys(holds).reduce(function (max, key) {
+      return Math.max(max, holds[key]);
+    }, 0);
+    var wait = until - Date.now();
+    if (wait > 0) {
+      this.timouts[user] = setTimeout(function () {
+        self.logoutAfterHold(user);
+      }, wait);
+      return;
+    }
+    // Broadcast notificaiton that we are about to hide modules.
+    // Ideally this would be USERS_LOGOUT to be consistent with hide/show timer, but to prevent regression using a new type.
+    this.sendNotification('USERS_LOGOUT_MODULES', user);
+    this.logout_user(user);
+    this.showNextPresent();
+  },
+
   // After a logout, show whoever is still in front of the mirror (a recognised person first)
   showNextPresent: function () {
     if (this.users.length > 0 || this.present.length === 0) return;
@@ -490,6 +508,13 @@ Module.register('MMM-Face-Reco-DNN', {
 
   // ----------------------------------------------------------------------------------------------------
   notificationReceived: function (notification, payload, _sender) {
+    // a module keeps the view up until a point in time, e.g. until all pages of a list were shown; until 0 releases it
+    if (notification === 'HOLD_LOGOUT') {
+      var holder = (_sender && _sender.identifier) || 'default';
+      this.holds = this.holds || {};
+      this.holds[holder] = Math.min(Number(payload && payload.until) || 0, Date.now() + this.config.maxHold);
+      return;
+    }
     // Event if DOM is created
     if (notification === 'DOM_OBJECTS_CREATED') {
       // at startup modules will already be shown

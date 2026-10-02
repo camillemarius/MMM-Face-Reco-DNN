@@ -2,6 +2,7 @@
 
 - Single-user mode (`multiUser: 0`): a newly recognised person takes over right away instead of waiting for the previous person to log out. An unknown face never pushes a recognised person away.
 - When that person leaves, whoever is still in front of the mirror is shown again.
+- Modules can keep the view up longer with the notification `HOLD_LOGOUT` (`{ until: timestamp }`, `until: 0` releases), e.g. until all pages of a list were shown; at most `maxHold` (10 minutes). A newly recognised person still takes over at once.
 - Tests: `node --test test/*.test.js`
 
 # 2.0.1 (2023-11-01)
