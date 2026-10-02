@@ -32,6 +32,7 @@ module.exports = NodeHelper.create({
         '--output=' + this.config.output,
         '--outputmm=' + this.config.outputmm,
         '--extendDataset=' + extendedDataset,
+        '--extendDatasetNames=' + [].concat(this.config.extendDatasetNames || []).join(','),
         '--dataset=' + this.config.dataset,
         '--tolerance=' + this.config.tolerance,
         '--brightness=' + this.config.brightness,

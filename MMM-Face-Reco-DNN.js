@@ -65,6 +65,8 @@ Module.register('MMM-Face-Reco-DNN', {
     // Save some pictures from recognized people, if unknown we save it in folder "unknown"
     // So you can extend your dataset and retrain it afterwards for better recognitions
     extendDataset: false,
+    // only save pictures of these names, e.g. ['unknown'] for faces that could not be recognised; empty = everyone
+    extendDatasetNames: [],
     // if extenDataset is set, you need to set the full path of the dataset
     dataset: 'modules/MMM-Face-Reco-DNN/dataset/',
     // How much distance between faces to consider it a match. Lower is more strict.

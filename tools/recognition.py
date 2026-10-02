@@ -9,6 +9,7 @@ import base64
 from datetime import datetime
 from utils.image import Image
 from utils.arguments import Arguments
+from utils.helper import Helper
 from utils.print import Print
 from picamera2 import Picamera2
 
@@ -156,8 +157,8 @@ while True:
         if prevNames.__contains__(n) == False and n is not None:
             logins.append(n)
 
-            # if extendDataset is active we need to save the picture
-            if Arguments.get("extendDataset") is True:
+            # if extendDataset is active we need to save the picture (only of the names in extendDatasetNames, if set)
+            if Arguments.get("extendDataset") is True and Helper.keepsPicture(n, Arguments.get("extendDatasetNames")):
                 # set correct path to the dataset
                 path = os.path.dirname(Arguments.get("dataset") + "/" + n + "/")
 
