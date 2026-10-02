@@ -17,6 +17,9 @@ Module.register('MMM-Face-Reco-DNN', {
     logoutDelay: 15000,
     // a module may keep the view up longer (notification HOLD_LOGOUT with { until: timestamp }), at most this long
     maxHold: 10 * 60 * 1000,
+    // a person the camera lost for less than this is not newly arrived when found again,
+    // so they do not take the view back from someone who came later
+    rejoinGrace: 30000,
     // How many time the recognition starts, with a RasPi 3+ it would be good every 2 seconds
     checkInterval: 2000,
     // Module set used for when there is no face detected ie no one is in front of the camera
@@ -380,6 +383,10 @@ Module.register('MMM-Face-Reco-DNN', {
     var user;
     // Who is in front of the camera right now; the script only reports changes
     this.present = this.present || [];
+    // when each person was last lost by the camera, and in which order they arrived
+    this.lastSeen = this.lastSeen || {};
+    this.arrived = this.arrived || {};
+    this.arrivals = this.arrivals || 0;
 
     if (notification === 'camera_image') {
       this.image = payload.image;
@@ -392,6 +399,8 @@ Module.register('MMM-Face-Reco-DNN', {
       for (user of payload.users) {
         if (user != null) {
           if (!this.present.includes(user)) this.present.push(user);
+          // found again after a moment: keeps their place in the arrival order
+          if (!this.recentlySeen(user)) this.arrived[user] = ++this.arrivals;
           // if there are currently no users logged in OR we allow multiple users
           this.config.debug && Log.log('Number of logged in users:' + this.users.length + ', Allowed Number of Users:' + this.config.multiUser);
           if (this.takesOver(user)) {
@@ -438,6 +447,7 @@ Module.register('MMM-Face-Reco-DNN', {
           this.present = this.present.filter(function (u) {
             return u !== user;
           });
+          this.lastSeen[user] = Date.now();
           // see if user is even logged in, since you can only log out if you are actually logged in
           if (this.users.includes(user)) {
             this.config.debug && Log.log('Setting logout timer for ' + user + ' for ' + this.config.logoutDelay + 'ms');
@@ -458,9 +468,16 @@ Module.register('MMM-Face-Reco-DNN', {
   },
 
   // Single-user mode - a newly recognised person takes over right away.
-  // An unknown face never pushes a recognised person away (misdetections are frequent).
+  // An unknown face never pushes a recognised person away (misdetections are frequent),
+  // and neither does someone the camera only lost for a moment.
   takesOver: function (user) {
-    return this.config.multiUser <= 1 && this.users.length > 0 && !this.users.includes(user) && user !== this.config.unknownClass;
+    return this.config.multiUser <= 1 && this.users.length > 0 && !this.users.includes(user) && user !== this.config.unknownClass && !this.recentlySeen(user);
+  },
+
+  // Seen in front of the mirror within rejoinGrace: found again, not newly arrived
+  recentlySeen: function (user) {
+    var seen = this.lastSeen && this.lastSeen[user];
+    return seen != null && Date.now() - seen < this.config.rejoinGrace;
   },
 
   switchTo: function (user) {
@@ -494,14 +511,20 @@ Module.register('MMM-Face-Reco-DNN', {
     this.showNextPresent();
   },
 
-  // After a logout, show whoever is still in front of the mirror (a recognised person first)
+  // After a logout, show whoever is still in front of the mirror (a recognised person first, the one who came last)
   showNextPresent: function () {
     if (this.users.length > 0 || this.present.length === 0) return;
     var unknownClass = this.config.unknownClass;
+    var arrived = this.arrived || {};
+    var latest = function (list) {
+      return list.reduce(function (a, b) {
+        return (arrived[b] || 0) >= (arrived[a] || 0) ? b : a;
+      });
+    };
     var known = this.present.filter(function (u) {
       return u !== unknownClass;
     });
-    var next = known.length ? known[known.length - 1] : this.present[this.present.length - 1];
+    var next = known.length ? latest(known) : latest(this.present);
     this.login_user(next);
     this.sendNotification('USERS_LOGIN', [next]);
   },
