@@ -126,3 +126,50 @@ test("hold: never longer than maxHold", async () => {
 	await sleep(120);
 	assert.deepEqual(m.users, []);
 });
+
+test("the newcomer stays while the camera loses and finds the earlier person again", () => {
+	const m = make();
+	m.config.rejoinGrace = 1000;
+	login(m, "Anna");
+	login(m, "Ben");
+	logout(m, "Anna");
+	login(m, "Anna");
+	assert.deepEqual(m.users, ["Ben"]);
+});
+
+test("the newcomer leaves: the earlier person, found again in between, comes back", async () => {
+	const m = make();
+	m.config.rejoinGrace = 1000;
+	login(m, "Anna");
+	login(m, "Ben");
+	logout(m, "Anna");
+	login(m, "Anna");
+	logout(m, "Ben");
+	await sleep(60);
+	assert.deepEqual(m.users, ["Anna"]);
+});
+
+test("away longer than rejoinGrace: counts as a new person and takes over", async () => {
+	const m = make();
+	m.config.rejoinGrace = 30;
+	login(m, "Anna");
+	login(m, "Ben");
+	logout(m, "Anna");
+	await sleep(50);
+	login(m, "Anna");
+	assert.deepEqual(m.users, ["Anna"]);
+});
+
+test("a third person takes over; when they leave, the person shown before comes back", async () => {
+	const m = make();
+	m.config.rejoinGrace = 1000;
+	login(m, "Anna");
+	login(m, "Ben");
+	login(m, "Cleo");
+	assert.deepEqual(m.users, ["Cleo"]);
+	logout(m, "Anna");
+	login(m, "Anna"); // the camera lost Anna for a moment, she did not arrive anew
+	logout(m, "Cleo");
+	await sleep(60);
+	assert.deepEqual(m.users, ["Ben"]);
+});
