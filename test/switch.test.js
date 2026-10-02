@@ -12,7 +12,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function make () {
 	const m = Object.assign(Object.create(def), {
-		config: { ...def.defaults, logoutDelay: 20, multiUser: 0, unknownClass: "unknown", debug: false },
+		config: { ...def.defaults, logoutDelay: 20, handoverDelay: 20, multiUser: 0, unknownClass: "unknown", debug: false },
 		users: [],
 		timouts: {},
 		sent: [],
@@ -172,4 +172,85 @@ test("a third person takes over; when they leave, the person shown before comes 
 	logout(m, "Cleo");
 	await sleep(60);
 	assert.deepEqual(m.users, ["Ben"]);
+});
+
+test("the shown person leaves while another is in front: that one comes after handoverDelay, not logoutDelay", async () => {
+	const m = make();
+	m.config.logoutDelay = 1000;
+	login(m, "Anna");
+	login(m, "Ben");
+	logout(m, "Ben");
+	await sleep(60);
+	assert.deepEqual(m.users, ["Anna"]);
+});
+
+test("handing over does not wait for a module's hold", async () => {
+	const m = make();
+	m.config.logoutDelay = 1000;
+	login(m, "Anna");
+	login(m, "Ben");
+	hold(m, Date.now() + 1000);
+	logout(m, "Ben");
+	await sleep(60);
+	assert.deepEqual(m.users, ["Anna"]);
+});
+
+test("lost for less than handoverDelay: no switch", async () => {
+	const m = make();
+	m.config.handoverDelay = 60;
+	login(m, "Anna");
+	login(m, "Ben");
+	logout(m, "Ben");
+	await sleep(10);
+	login(m, "Ben");
+	await sleep(100);
+	assert.deepEqual(m.users, ["Ben"]);
+});
+
+test("nobody else in front: logoutDelay as before", async () => {
+	const m = make();
+	m.config.logoutDelay = 100;
+	login(m, "Anna");
+	logout(m, "Anna");
+	await sleep(50);
+	assert.deepEqual(m.users, ["Anna"]);
+	await sleep(100);
+	assert.deepEqual(m.users, []);
+});
+
+test("only an unknown face left in front: no quick hand-over (it may be the same person, misread)", async () => {
+	const m = make();
+	m.config.logoutDelay = 100;
+	login(m, "Anna");
+	login(m, "unknown");
+	logout(m, "Anna");
+	await sleep(50);
+	assert.deepEqual(m.users, ["Anna"]);
+	await sleep(150);
+});
+
+test("the other person leaves too before the hand-over: logoutDelay counts from when the shown person left", async () => {
+	const m = make();
+	m.config.logoutDelay = 100;
+	login(m, "Anna");
+	login(m, "Ben");
+	logout(m, "Ben");
+	await sleep(5);
+	logout(m, "Anna");
+	await sleep(50);
+	assert.deepEqual(m.users, ["Ben"], "logoutDelay is not over yet");
+	await sleep(100);
+	assert.deepEqual(m.users, []);
+});
+
+test("the other person was lost for a moment just as the shown one left: hand-over once they are found again", async () => {
+	const m = make();
+	m.config.logoutDelay = 1000;
+	login(m, "Anna");
+	login(m, "Ben");
+	logout(m, "Anna"); // the camera loses Anna for a moment
+	logout(m, "Ben"); // Ben walks away
+	login(m, "Anna"); // Anna found again
+	await sleep(60);
+	assert.deepEqual(m.users, ["Anna"]);
 });

@@ -20,6 +20,9 @@ Module.register('MMM-Face-Reco-DNN', {
     // a person the camera lost for less than this is not newly arrived when found again,
     // so they do not take the view back from someone who came later
     rejoinGrace: 30000,
+    // the shown person is gone this long while another recognised person is still in front: show that person
+    // right away, without logoutDelay and without waiting for a hold
+    handoverDelay: 5000,
     // How many time the recognition starts, with a RasPi 3+ it would be good every 2 seconds
     checkInterval: 2000,
     // Module set used for when there is no face detected ie no one is in front of the camera
@@ -435,6 +438,8 @@ Module.register('MMM-Face-Reco-DNN', {
         }
       }
 
+      this.handOverSoon();
+
       if (loginCount > 0) {
         // We still need to broadcast MM notification for backward compatability.
         this.config.debug && Log.log('Detected ' + loginCount + ' logins.');
@@ -450,10 +455,11 @@ Module.register('MMM-Face-Reco-DNN', {
           this.lastSeen[user] = Date.now();
           // see if user is even logged in, since you can only log out if you are actually logged in
           if (this.users.includes(user)) {
-            this.config.debug && Log.log('Setting logout timer for ' + user + ' for ' + this.config.logoutDelay + 'ms');
+            var delay = this.othersInFront(user) ? this.config.handoverDelay : this.config.logoutDelay;
+            this.config.debug && Log.log('Setting logout timer for ' + user + ' for ' + delay + 'ms');
             this.timouts[user] = setTimeout(function () {
               self.logoutAfterHold(user);
-            }, this.config.logoutDelay);
+            }, delay);
           } else {
             this.config.debug && Log.log('Detected a logout event for ' + user + ' but they were not logged in.');
           }
@@ -490,14 +496,37 @@ Module.register('MMM-Face-Reco-DNN', {
     this.login_user(user);
   },
 
+  // A recognised person other than this one is in front of the mirror (an unknown face may be this person, misread)
+  othersInFront: function (user) {
+    var unknownClass = this.config.unknownClass;
+    return (this.present || []).some(function (u) {
+      return u !== user && u !== unknownClass;
+    });
+  },
+
+  // The shown person is gone and someone else is (again) in front: hand over handoverDelay after they left,
+  // instead of waiting for logoutDelay (e.g. the other person was lost for a moment just as the shown one left)
+  handOverSoon: function () {
+    var self = this;
+    this.users.forEach(function (current) {
+      if (self.present.includes(current) || !self.othersInFront(current)) return;
+      clearTimeout(self.timouts[current]);
+      var wait = Math.max(0, (self.lastSeen[current] || 0) + self.config.handoverDelay - Date.now());
+      self.timouts[current] = setTimeout(function () {
+        self.logoutAfterHold(current);
+      }, wait);
+    });
+  },
+
   // Log out once no module holds the view any more (HOLD_LOGOUT); a newly recognised person still takes over at once.
+  // Someone else still in front gets the view without waiting for logoutDelay or a hold.
   logoutAfterHold: function (user) {
     var self = this;
     var holds = this.holds || {};
     var until = Object.keys(holds).reduce(function (max, key) {
       return Math.max(max, holds[key]);
-    }, 0);
-    var wait = until - Date.now();
+    }, ((this.lastSeen && this.lastSeen[user]) || 0) + this.config.logoutDelay);
+    var wait = this.othersInFront(user) ? 0 : until - Date.now();
     if (wait > 0) {
       this.timouts[user] = setTimeout(function () {
         self.logoutAfterHold(user);
