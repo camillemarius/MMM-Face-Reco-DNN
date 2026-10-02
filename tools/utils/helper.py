@@ -13,3 +13,8 @@ class Helper:
             return False
         else:
             raise argparse.ArgumentTypeError("Boolean value expected.")
+
+    # extendDataset keeps a picture of this name? "unknown,ben" = only these names, empty = everyone
+    def keepsPicture(name, onlyNames):
+        only = [n.strip() for n in (onlyNames or "").split(",") if n.strip()]
+        return not only or name in only

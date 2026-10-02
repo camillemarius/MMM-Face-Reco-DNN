@@ -104,6 +104,14 @@ class Arguments:
             help="Extend Dataset with unknown pictures",
         )
         ap.add_argument(
+            "-edn",
+            "--extendDatasetNames",
+            type=str,
+            required=False,
+            default="",
+            help="Extend Dataset only with pictures of these names (comma separated, e.g. unknown); empty = everyone",
+        )
+        ap.add_argument(
             "-ds",
             "--dataset",
             required=False,
