@@ -376,6 +376,8 @@ Module.register('MMM-Face-Reco-DNN', {
   socketNotificationReceived: function (notification, payload) {
     var self = this;
     var user;
+    // Who is in front of the camera right now; the script only reports changes
+    this.present = this.present || [];
 
     if (notification === 'camera_image') {
       this.image = payload.image;
@@ -387,9 +389,13 @@ Module.register('MMM-Face-Reco-DNN', {
       var loginCount = 0;
       for (user of payload.users) {
         if (user != null) {
+          if (!this.present.includes(user)) this.present.push(user);
           // if there are currently no users logged in OR we allow multiple users
           this.config.debug && Log.log('Number of logged in users:' + this.users.length + ', Allowed Number of Users:' + this.config.multiUser);
-          if (this.users.length === 0 || this.users.length < this.config.multiUser) {
+          if (this.takesOver(user)) {
+            this.switchTo(user);
+            loginCount++;
+          } else if (this.users.length === 0 || this.users.length < this.config.multiUser) {
             // check if the user is already logged in
             if (!this.users.includes(user)) {
               // run the login procedure
@@ -427,6 +433,9 @@ Module.register('MMM-Face-Reco-DNN', {
       var logoutCount = 0;
       for (user of payload.users) {
         if (user != null) {
+          this.present = this.present.filter(function (u) {
+            return u !== user;
+          });
           // see if user is even logged in, since you can only log out if you are actually logged in
           if (this.users.includes(user)) {
             this.config.debug && Log.log('Setting logout timer for ' + user + ' for ' + this.config.logoutDelay + 'ms');
@@ -436,6 +445,7 @@ Module.register('MMM-Face-Reco-DNN', {
               self.sendNotification('USERS_LOGOUT_MODULES', user);
               self.logout_user(user);
               logoutCount++;
+              self.showNextPresent();
             }, this.config.logoutDelay);
           } else {
             this.config.debug && Log.log('Detected a logout event for ' + user + ' but they were not logged in.');
@@ -448,6 +458,34 @@ Module.register('MMM-Face-Reco-DNN', {
         this.sendNotification('USERS_LOGOUT', payload.users);
       }
     }
+  },
+
+  // Single-user mode - a newly recognised person takes over right away.
+  // An unknown face never pushes a recognised person away (misdetections are frequent).
+  takesOver: function (user) {
+    return this.config.multiUser <= 1 && this.users.length > 0 && !this.users.includes(user) && user !== this.config.unknownClass;
+  },
+
+  switchTo: function (user) {
+    var self = this;
+    this.users.slice().forEach(function (current) {
+      clearTimeout(self.timouts[current]);
+      self.sendNotification('USERS_LOGOUT_MODULES', current);
+      self.logout_user(current);
+    });
+    this.login_user(user);
+  },
+
+  // After a logout, show whoever is still in front of the mirror (a recognised person first)
+  showNextPresent: function () {
+    if (this.users.length > 0 || this.present.length === 0) return;
+    var unknownClass = this.config.unknownClass;
+    var known = this.present.filter(function (u) {
+      return u !== unknownClass;
+    });
+    var next = known.length ? known[known.length - 1] : this.present[this.present.length - 1];
+    this.login_user(next);
+    this.sendNotification('USERS_LOGIN', [next]);
   },
 
   // ----------------------------------------------------------------------------------------------------
