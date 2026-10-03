@@ -56,6 +56,12 @@ if Arguments.get("extendDataset") is True:
 
 tolerance = float(Arguments.get("tolerance"))
 
+# exposure correction of the camera, e.g. +1 when a bright window behind the person makes the face too dark
+exposureValue = Arguments.get("exposureValue")
+if exposureValue:
+    picam2.set_controls({"ExposureValue": exposureValue})
+    Print.printJson("status", "exposureValue " + str(exposureValue))
+
 # loop over frames from the video file stream
 while True:
     # read the frame

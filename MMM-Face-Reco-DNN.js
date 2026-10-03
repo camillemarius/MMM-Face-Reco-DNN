@@ -71,6 +71,9 @@ Module.register('MMM-Face-Reco-DNN', {
     dataset: 'modules/MMM-Face-Reco-DNN/dataset/',
     // How much distance between faces to consider it a match. Lower is more strict.
     tolerance: 0.6,
+    // exposure correction of the camera on top of its auto exposure, e.g. 1 when a bright window behind
+    // the person makes the face too dark (-8 to 8, 0 = none)
+    exposureValue: 0,
     // allow multiple concurrent user logins, 0=no, any other number is the maximum number of concurrent logins
     multiUser: 0,
     // resoltuion of the image

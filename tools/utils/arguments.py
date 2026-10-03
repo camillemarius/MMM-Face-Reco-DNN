@@ -112,6 +112,14 @@ class Arguments:
             help="Extend Dataset only with pictures of these names (comma separated, e.g. unknown); empty = everyone",
         )
         ap.add_argument(
+            "-ev",
+            "--exposureValue",
+            type=float,
+            required=False,
+            default=0.0,
+            help="Exposure correction of the camera on top of auto exposure (-8 to 8, 0 = none)",
+        )
+        ap.add_argument(
             "-ds",
             "--dataset",
             required=False,

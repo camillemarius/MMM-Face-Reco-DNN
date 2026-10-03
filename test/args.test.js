@@ -31,3 +31,9 @@ test("extendDatasetNames reaches the script as a comma separated list", () => {
 test("without extendDatasetNames every name is kept, as before", () => {
 	assert.ok(args({ extendDataset: true }).includes("--extendDatasetNames="));
 });
+
+test("exposureValue reaches the script (camera exposure correction, e.g. 1 against backlight); default 0", () => {
+	assert.ok(args({ exposureValue: 1 }).includes("--exposureValue=1"));
+	assert.ok(args({ exposureValue: -0.5 }).includes("--exposureValue=-0.5"));
+	assert.ok(args({}).includes("--exposureValue=0"));
+});
